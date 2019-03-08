@@ -357,11 +357,35 @@ Web sites can add themselves to the list by sending the
 Unrelated to HSTS but sort of a collorary of how the attack works: specify the
 protocol (`https://`) in all your links, if you can.
 
+## Passwords
+
+As has been mentioned, use bcrypt for storing your passwords in a database.
+
+Encourage your users to use a password manager:
+
+- Allow paste. Do the minimum to the password field -- and be sure to annotate
+  that it is a standard password field (`type="password"` in HTML,
+  `android:inputType="password"` in Android) -- so that the user's password
+  manager can work with it.
+- Never expire passwords. [To quote
+  NIST](https://pages.nist.gov/800-63-FAQ/#q-b5):
+    > Users tend to choose weaker memorized secrets when they know that they
+    > will have to change them in the near future. When those changes do occur,
+    > they often select a secret that is similar to their old memorized secret
+    > by applying a set of common transformations such as increasing a number
+    > in the password. This practice provides a false sense of security if any
+    > of the previous secrets has been compromised since attackers can apply
+    > these same common transformations.
+- Allow passwords to be more complex. Whether you want to enforce light
+  password complexity rules or not ([NIST discourages password complexity
+  rules](https://pages.nist.gov/800-63-FAQ/#q-b6)), allow for passwords longer
+  or otherwise more complex than you expect. When possible, treat it as bytes
+  that are immediately hashed and stored.
+
 ---
 
 ## TODO
 
-- password complexity
 - OTP
    - HTOP
    - TOTP
@@ -376,7 +400,8 @@ protocol (`https://`) in all your links, if you can.
    - don't touch it if you can avoid it
    - don't store any more than you need
 - check your return values
-- HMAC - probably goes under hashing somewhere. mention encrypt-then-hmac later
+- HMAC - probably goes under hashing somewhere. mention encrypt-then-hmac in
+  the hashing vs encryption section
 
 
 ## Interesting links
