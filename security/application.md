@@ -229,7 +229,8 @@ to a server you are asked to confirm the server's public key fingerprint:
 ```
 The authenticity of host heroku.com can't be established.
 RSA key fingerprint is 8tF0wX2WquK45aGKs/Bh1dKmBXH08vxUe0VCJJWOA/o.
-Are you sure you want to continue connecting (yes/no)?  ```
+Are you sure you want to continue connecting (yes/no)?  
+```
 
 The server admin will need to tell you out of band whether that is the correct
 fingerprint ([Heroku publishes their fingerprint
