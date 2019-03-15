@@ -11,18 +11,19 @@ two perspectives:
 
 Identifying what can go wrong is what is most often [written about when
 discussing threat](https://www.owasp.org/index.php/Application_Threat_Modeling)
-modeling. There are [many
+modeling. There are [many thread modeling
 techniques](https://insights.sei.cmu.edu/sei_blog/2018/12/threat-modeling-12-available-methods.html),
 but the summary is:
 
-1. Figure out what an attacker can do on your app. For a Web app, they might be
-   able to spoof HTTP headers, submit malicious data, or embed a Web page in an
-   `iframe`.
-2. Identify the weak points of the app. These will likely be places where you
-   are doing something non-standard, which the frameworks don't know how to
-   protect.
-3. Prioritize these. Take into account factors such as difficulty of attack,
-   likelihood of attack, ease of mitigating the attack, and severity of attack.
+1. Create a list of what an attacker can do on your app. For a Web app, they
+might be able to spoof HTTP headers, submit malicious data, or embed a Web page
+in an `iframe`.
+2. Add to the list the the weak points of the app. These will likely be places
+where you are doing something non-standard, which the frameworks don't know how
+to protect.
+3. Prioritize this list. Take into account factors such as difficulty of
+attack, likelihood of attack, ease of mitigating the attack, and severity of
+attack.
 
 Anything not in the list are things you cannot use as a reason to do something.
 Since the list is prioritized, you can use it to help it to prioritize tickets
@@ -43,8 +44,12 @@ There are a few ways to keep up with security fixes:
 
 - Any playform-specific tool, such as
   [bundler-audit](https://github.com/rubysec/bundler-audit#readme).
-- The [#security](https://thoughtbot.slack.com/messages/security) channel.
 - [Any official CVE feed](https://cve.mitre.org/cve/data_updates.html).
+
+If you have access, the thoughtbot
+[#security](https://thoughtbot.slack.com/messages/security) channel does our
+best to keep up with security issues that we think will affect us or our
+clients.
 
 ## Secure programming
 
@@ -144,10 +149,12 @@ Most modern cryptography is dependant on really big prime numbers and access to
 solid randomization. If you find yourself in a place where you need a random
 number, here are some things to keep in mind.
 
-- Do not restrict the randomized space with a modulo or floating-point
-  multiplication [bias](http://www.pcg-random.org/posts/bounded-rands.html).
-  Instead, try generating a random number in a loop, returning when the value
-  is within the desired range.
+- Don't do this yourself. If you can use Ruby's `SecureRandom` or functions
+  like `arc4random_buf(3)` and `arc4random_uniform(3)`, do that instead.
+- [Do not restrict the randomized
+  space](http://www.pcg-random.org/posts/bounded-rands.html) with a modulo or
+  floating-point multiplication bias. Instead, try generating a random number
+  in a loop, returning when the value is within the desired range.
 - Use an unpredictable seed. Do not use the current time, or the seconds since
   boot, or `0`, or your age, or the result from calling rand seeded on
   a predictable seed. If possible, use a random number generator that you do
@@ -155,8 +162,6 @@ number, here are some things to keep in mind.
 - Use a non-blocking random number generator. If an attacker discovers that the
   random number generator blocks, such as Linux's `/dev/urandom`, that is
   a potential denial of service attack vector.
-- Don't do this yourself. If you can use Ruby's `SecureRandom` or functions
-  like `arc4random_buf(3)` and `arc4random_uniform(3)`, do that instead.
 
 ## Hashing
 
@@ -245,24 +250,6 @@ Each of these require a salt, but handle it themselves: the output of these
 functions is a string that contains the salt plus the hashed value. Store that
 entire string as the hashed password.
 
-Never compare hashed passwords using the built-in string equality function;
-this sets you up for a timing attack.
-
-### Timing attacks
-
-An attacker can learn a lot from _how long_ it takes to be denied access. If
-it's instant, that means the input didn't even pass validation; if it's kinda
-long, that means that the input got past validation and computed a hash but one
-of the first few characters of the hash were incorrect; a longer delay means
-that most of the hash was right. Knowing how much of the hash was right allows
-the attacker to narrow the attack space.
-
-The solution: use a constant-time equality check for comparing the hashed
-values. Bcrypt libraries ship with a function that does everything for you.
-ActiveSupport ships with `secure_compare` for constant-time comparisons. Worst
-case: pad the string to a fixed length then make sure your loop goes through
-every character even after you know the answer.
-
 ## Encryption
 
 An encryption algorithm is one where a string can be made illegible and then
@@ -280,23 +267,37 @@ necessarily decrypt it.
 
 The most popular symmetric algorithms you'll encounter are AES and Twofish.
 These might be useful for encrypting a file to share with a group of people or
-for encrypting your filesystem. Rumor has it that 1Password uses something like
-it AES to encrypt an entire vault; it is encrypted at rest, and only decrypted
-when you enter the passphrase.
+for encrypting your filesystem. 1Password uses AES to encrypt an entire vault;
+it is encrypted at rest, and only decrypted when you enter the passphrase.
 
 Asymmetric encryption algorithms, also known as public/private keypair
-encryption, is more well-known -- in large part for how tricky they are to get
+encryption, are more well-known -- in large part for how tricky they are to get
 right. Some famous ones are SSH, TLS (previously SSL), and PGP.  These start by
-generated a pair of encryption secrets known as the public and private keys.
+generating a pair of encryption secrets known as the public and private keys.
 Anyone with the public key can encrypt a string, but only the holder of the
 private key can decrypt.
 
-(The math here is cool. I won't go into it.)
+([The math around asymmetric
+encryption](http://pi.math.cornell.edu/~mec/2003-2004/cryptography/diffiehellman/diffiehellman.html)
+is cool. I won't go into it.)
 
 In order for any of this to work, you need to get your hands on a confirmed
 public key. Each public key has a fingerprint -- an abbreviated and
 easily-confirmable portion of the entire secret. How this works in practice
 depends on the protocol.
+
+### Signing
+
+An asymmetric encryption algorithm can be run in reverse to provide for
+signing. In this, a private key is used to sign a string, producing a signature
+string. The public key can be used to verify that the private key was used to
+generate the signature, provind that the string was in the control of the owner
+of the private key.
+
+This is useful for certificate authorities, as used by TLS, but also useful for
+sharing files. You can provide the tarball and the signature, and anyone with
+your public key can verify that the tarball was created by you (or, at least,
+anyone with your private key). The Debian package system is built around this.
 
 ### SSH
 
@@ -337,18 +338,7 @@ that was signed by GlobalSign. When you visit thoughtbot.com, it sends its
 public key plus the signature from GlobalSign. Firefox trusts GlobalSign, so it
 trusts thoughtbot.com's key.
 
-This mechanism is called a central authority.
-
-### Signing
-
-An asymmetric encryption algorithm can be run in reverse to provide for
-signing. In this, a private key is used to sign a string, producing a signature
-string. The public key can be used to verify the string against the signature.
-
-This is useful for central authorities, as used by TLS, but also useful for
-sharing files. You can provide the tarball and the signature, and anyone with
-your public key can verify that the tarball was created by you (or, at least,
-anyone with your private key). The Debian package system is built around this.
+This mechanism is called a certificate authority.
 
 ## Encrypting and hashing
 
@@ -378,7 +368,7 @@ relate to trust. It can only guarantee that the information is sent, untampered
 and privately, only to the recipient you are sending it to. It does not
 guarantee that you are sending it to the right recipient.
 
-There are two kinds of certificates signed by central authorities: domain
+There are two kinds of certificates signed by certificate authorities: domain
 verification and extended verification. Domain verification does what it says
 on the tin: it confirms that the holder of the private key is also in control
 of the domain name. Extended verification goes further and cannot be automated:
@@ -473,6 +463,23 @@ A good password has a couple of properties:
 Biometrics (iris scan, face recognition, thumbprint reader, etc.) violate most
 of those qualities. Biometrics are useful for identity but incorrect to use as
 an authentication secret.
+
+### Timing attacks
+
+An attacker can learn a lot from _how long_ it takes to be denied access. If
+it's instant, that means the input didn't even pass validation; if it's kinda
+long, that means that the input got past validation and computed a hash but one
+of the first few characters of the hash were incorrect; a longer delay means
+that most of the hash was right. Knowing how much of the hash was right allows
+the attacker to narrow the attack space.
+
+The solution: use a constant-time equality check for comparing the hashed
+values. Bcrypt libraries ship with a function that does everything for you.
+ActiveSupport ships with
+[`secure_compare`](https://api.rubyonrails.org/classes/ActiveSupport/SecurityUtils.html#method-c-secure_compare)
+for constant-time comparisons.
+Worst case: pad the string to a fixed length then make sure your loop goes
+through every character even after you know the answer.
 
 ## Multi-factor authentication (2FA)
 
