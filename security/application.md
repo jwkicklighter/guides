@@ -30,8 +30,10 @@ or split tickets.
 
 ## Library updates
 
-The easiest line of defense we have as a developer is applying security fixes
-for our dependencies as they are released.
+The easiest line of defense we have as a developer is [applying security fixes
+for our
+dependencies](https://snyk.io/blog/top-ten-most-popular-docker-images-each-contain-at-least-30-vulnerabilities/)
+as they are released.
 
 On the flip perspective, when releasing a security fix for one of our projects,
 make it trivial to upgrade: don't include new features or unrelated bug fixes,
@@ -43,6 +45,23 @@ There are a few ways to keep up with security fixes:
   [bundler-audit](https://github.com/rubysec/bundler-audit#readme).
 - The [#security](https://thoughtbot.slack.com/messages/security) channel.
 - [Any official CVE feed](https://cve.mitre.org/cve/data_updates.html).
+
+## Secure programming
+
+Ideally the program will be just as secure if an attacker were to gain access
+to the source code. This is not always possible, but programming with a mindset
+of preventing an all-knowing attacker can be healthy.
+
+[Some tips](https://twitter.com/SarahJamieLewis/status/1097300029016989696)
+along the way:
+
+- Always check return values. If the procedure can raise, make sure to handle
+  that (to prevent DoS attacks). If the procedure can signal failure, make sure
+  to handle that (to prevent read-after-free-style attacks).
+- Fail fast. If the data seems odd, don't recover: fail.
+- Leave the most security-sensitive code as an omega mess, once it works. Too
+  many bugs -- more than zero -- come out of refactoring to be worth a change
+  in the name of code beauty.
 
 ## User data
 
@@ -81,6 +100,43 @@ All client-side validation, such as a React component that tells the user that
 their email address is not in a valid format, is for presentation. These
 checks, and more, must be duplicated on the backend. Any attacker can use curl
 to bypass your client-side validations.
+
+### Cookies
+
+Cookies are user-controlled input and, therefore, should be treated with
+suspicion. If possible, don't rely on a cookie.
+
+Cookies can be copied between browsers. Just because a request sends a cookie
+does not mean that the cookie was sent by the user's original browser. It might
+come from curl.
+
+One way to retain control over the cookie data is to sign it using a secret key
+only known by the server. Rails does this for you.
+
+## Logging
+
+Logging is a compromise between having enough data to be able to debug
+a problem and having too much personally-identifying information about a user.
+
+Make sure not to log passwords, credit card numbers, or any other information
+that we do not strictly need. Err on the side of not logging any strings, if
+possible.
+
+In Rails, use the `filter_paramters` configuration setting to remove known
+attributes from the logs.
+
+In addition, if you are logging to a service over a network connection, make
+sure the connection itself is secured using TLS.
+
+## Personally-Identifying Information (PII)
+
+As much as you can, do not touch any information you don't need. Some tricks
+for this:
+
+- Send any credit card data directly to the payment processor from the client.
+  They'll give back a token, which we can store safely.
+- You probably don't need the user's sex, gender, date of birth, middle name,
+  and so on. You might, but ask yourself first: do you?
 
 ## Randomization
 
@@ -135,6 +191,27 @@ A fun example is to make a "precommit" statement among friends: create
 a sentence predicting an outcome, then share the hash of the sentence. When the
 outcome comes true, share the original text.
 
+### Hash-based Message Authentication Code (HMAC)
+
+If using a hash to verify a JSON API body, you and the client might have
+a shared secret that you concatenate onto the body so you can be sure that it
+is untampered with.
+
+The way most secure hashing algorithms work is based on blocks of bytes of
+a specific length. The input is split and padded to fit into the correct
+length. This leaves them open to a length-extension attack, where
+a knowledgeable attacker can add on to the input and compute a valid new hash
+by reverse-engineering the internal state of the hashing function without
+knowing the secret.
+
+A Hash-based Message Authentication Code (HMAC) is designed to work around
+that. Instead of hashing the secret concatenated with the message, it hashes
+the secret concatenated with the hash of the secret concatenated with the
+message.
+
+It's possible that you will not directly interact with HMACs but they do show
+up in TLS, JWT, and one-time passwords.
+
 ### Passwords
 
 Note that for passwords, the attacker does not need to know the user's
@@ -163,10 +240,10 @@ The solution is to use a key derivation algorithm. These are much like normal
 hashing algorithms (they're actually quite different, but that difference is
 negligible), except they are intentionally slow.
 
-The three most common password hashing algorithms are bcrypt, scrypt, and
-PBKDF2. Each of these require a salt, but handle it themselves: the output of
-these functions is a string that contains the salt plus the hashed value. Store
-that entire string as the hashed password.
+The most common password hashing algorithms are bcrypt, scrypt, and PBKDF2.
+Each of these require a salt, but handle it themselves: the output of these
+functions is a string that contains the salt plus the hashed value. Store that
+entire string as the hashed password.
 
 Never compare hashed passwords using the built-in string equality function;
 this sets you up for a timing attack.
@@ -362,7 +439,7 @@ protocol (`https://`) in all your links, if you can.
 
 As has been mentioned, use bcrypt for storing your passwords in a database.
 
-Encourage your users to use a password manager:
+Design the user experience to encourage your users to use a password manager:
 
 - Allow paste. Do the minimum to the password field -- and be sure to annotate
   that it is a standard password field (`type="password"` in HTML,
@@ -383,30 +460,89 @@ Encourage your users to use a password manager:
   or otherwise more complex than you expect. When possible, treat it as bytes
   that are immediately hashed and stored.
 
----
+A good password has a couple of properties:
 
-## TODO
+- Complex enough to be hard to crack through a boring enumeration attack.
+- Able to be changed when compromised.
+- Unique to the account.
+- Can be stored securely by the user (in their own head, in a password manager,
+  in a locked notebook, etc.).
+- Can be kept as a secret.
+- Leaking the password only threatens the security of that password.
 
-- OTP
-   - HTOP
-   - TOTP
-- cookies
-   - sign
-   - secure
-- logging
-   - TLS if networked
-   - be careful what you log
-- PII
-   - send CC data directly to processor
-   - don't touch it if you can avoid it
-   - don't store any more than you need
-- check your return values
-- HMAC - probably goes under hashing somewhere. mention encrypt-then-hmac in
-  the hashing vs encryption section
+Biometrics (iris scan, face recognition, thumbprint reader, etc.) violate most
+of those qualities. Biometrics are useful for identity but incorrect to use as
+an authentication secret.
 
+## Multi-factor authentication (2FA)
 
-## Interesting links
+Given an email and password, you can authenticate as a user any time you wish.
+If someone were to mistakenly use the same password for multiple services, it
+is as strong as the least secure of those services: if the password were
+leaked, the password for all of those accounts are leaked at once.
 
-- https://net.cs.uni-bonn.de/fileadmin/user_upload/naiakshi/Naiakshina_Password_Study.pdf
-- https://snyk.io/blog/top-ten-most-popular-docker-images-each-contain-at-least-30-vulnerabilities/
-- https://twitter.com/SarahJamieLewis/status/1097300029016989696
+We can mitigate these kinds of attacks by requiring a second security factor --
+for example, a second password. We can go further by defining passwords of
+different nature:
+
+- Something you know, such as a string of letters.
+- Something you are, such as biometrics.
+- Something you have, such as a phone.
+
+We can use a HOTP or TOTP algorithm to send and verify short codes out of band
+to something the user has, such as via email, SMS, or an external program.
+
+### OTP
+
+The HMAC-based One-time Password (HOTP) algorithm, RFC 4226, is a somewhat
+straightforward function. The details can be found in the RFC but in summary it
+works like this: the client and server communicate a shared secret (typically
+via QR code). Whenever you need a one-time password, the shared secret is
+combined with an incrementing number, hashed, and then six digits are pulled
+out. Those six digits are the one-time password.
+
+Where can we get an incrementing number that both the client and server know
+about? We can use the number of minutes since the epoch. This gives us the
+Time-based One-time Password (TOTP) algorithm, RFC 6238.
+
+Most languages have a library for handling OTP. Ruby's is called rotp. As
+always, use the library instead of implementing it yourself.
+
+In practice it goes like this:
+
+1. Generate a secret. Store this for the user.
+2. Present the secret to the user as a QR code and optionally as a string. The
+user will use an app to scan the QR code into the OTP app. Some example apps
+are Google Authenticator and Duo, but the algorithm is simple enough that any
+app will do.
+3. Prompt the user for an OTP. If they confirm correctly, enable 2FA for them
+through this method.
+4. Next time they sign in, prompt them for an OTP generated by their app.
+Confirm it by comparing against the OTP calculated on the server.
+
+Note that the app can run entirely offline: it works by adding a secret key
+locally and computing an OTP from a combination of hashing functions. However,
+the counter value (e.g. minutes since epoch) must remain in sync between the
+server and client. Typically this means using NTP. If debugging, check the time
+first.
+
+Also note that TOTP is using the minute as the counter. If the client computes
+the OTP at 12:30:59 and the server computes the OTP at 12:31:02, it will
+compute a different value. The RFC recommends that the server accept OTP values
+for any time over the past 30 seconds or the future 30 seconds, to account for
+latency and drift.
+
+### Communicating an OTP
+
+An external app (Google Authenticator, 1Password, or a command-line tool) is
+the safest option for the client: the only point of attack is when the secret
+is initially communicated, and otherwise using it is offline and out of band.
+
+Sending an OTP from the server is less secure since it provides a window of
+attack each time the user authenticates. If you can send it securely, such as
+via an encrypted email or over Signal, that will reduce the attack. Plain text
+emails and SMS are open to the public and can be read by anyone, making them
+effectively useless for commmunicating a one-time password.
+
+Sending a one-time password via SMS is more secure than only a single form of
+authentication.
